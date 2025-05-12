@@ -1,10 +1,10 @@
-// CardGameSimulator.java
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
 import java.util.List;
 import javax.swing.Timer;
+import javax.swing.border.EmptyBorder;
 
 // --- Generic Deck Class ---
 class Deck<T> {
@@ -91,96 +91,291 @@ class Player<T> {
     }
 }
 
+// --- Animated Button Panel ---
+class AnimatedPanel extends JPanel {
+    private float alpha = 0f;
+    private final Timer fadeTimer;
+    
+    public AnimatedPanel() {
+        setOpaque(false);
+        fadeTimer = new Timer(50, e -> {
+            alpha = Math.min(1f, alpha + 0.1f);
+            repaint();
+            if (alpha >= 1f) {
+                ((Timer)e.getSource()).stop();
+            }
+        });
+        fadeTimer.start();
+    }
+    
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+        super.paintComponent(g2d);
+        g2d.dispose();
+    }
+}
+
+// --- Custom Button ---
+class GameButton extends JButton {
+    private Color hoverColor;
+    private Color normalColor;
+    private Timer pulseTimer;
+    private float pulseScale = 1.0f;
+    private boolean growing = true;
+
+    public GameButton(String text, Color color) {
+        super(text);
+        this.normalColor = color;
+        this.hoverColor = color.darker();
+        setupButton();
+        setupPulseAnimation();
+    }
+
+    private void setupButton() {
+        setBackground(normalColor);
+        setForeground(Color.WHITE);
+        setFocusPainted(false);
+        setBorderPainted(false);
+        setFont(new Font("Arial", Font.BOLD, 16));
+        setCursor(new Cursor(Cursor.HAND_CURSOR));
+        setPreferredSize(new Dimension(200, 60));
+
+        addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) {
+                setBackground(hoverColor);
+            }
+            public void mouseExited(MouseEvent e) {
+                setBackground(normalColor);
+            }
+        });
+    }
+
+    private void setupPulseAnimation() {
+        pulseTimer = new Timer(50, e -> {
+            if (growing) {
+                pulseScale += 0.01f;
+                if (pulseScale >= 1.05f) growing = false;
+            } else {
+                pulseScale -= 0.01f;
+                if (pulseScale <= 0.95f) growing = true;
+            }
+            repaint();
+        });
+        pulseTimer.start();
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        Graphics2D g2d = (Graphics2D) g.create();
+        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        
+        int w = getWidth();
+        int h = getHeight();
+        
+        // Calculate scaled dimensions
+        int sw = (int)(w * pulseScale);
+        int sh = (int)(h * pulseScale);
+        int x = (w - sw) / 2;
+        int y = (h - sh) / 2;
+        
+        g2d.setColor(getBackground());
+        g2d.fillRoundRect(x, y, sw, sh, 20, 20);
+        
+        g2d.setColor(getForeground());
+        FontMetrics fm = g2d.getFontMetrics();
+        String text = getText();
+        int textX = (w - fm.stringWidth(text)) / 2;
+        int textY = (h - fm.getHeight()) / 2 + fm.getAscent();
+        g2d.drawString(text, textX, textY);
+        
+        g2d.dispose();
+    }
+}
+
 // --- Main UI Class ---
 public class CardGameSimulator extends JFrame {
     private final JTextArea displayArea = new JTextArea(10, 30);
-    private final JButton blackjackButton = new JButton("Play Blackjack");
-    private final JButton highCardButton = new JButton("Play High Card");
-    private final JButton guessCardButton = new JButton("Play Guess the Card");
-    private final JButton slapjackButton = new JButton("Play Slapjack");
+    private final GameButton blackjackButton = new GameButton("Play Blackjack", new Color(50, 205, 50));
+    private final GameButton highCardButton = new GameButton("Play High Card", new Color(255, 69, 0));
+    private final GameButton guessCardButton = new GameButton("Play Guess the Card", new Color(147, 112, 219));
+    private final GameButton slapjackButton = new GameButton("Play Slapjack", new Color(255, 215, 0));
 
     public CardGameSimulator() {
         setTitle("Card Game Menu");
-        setSize(400, 300);
+        setSize(800, 600);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setLayout(new BorderLayout());
+        setLayout(new BorderLayout(20, 20));
 
-        // Set background color
-        getContentPane().setBackground(new Color(240, 248, 255)); // Light blue background
+        // Gradient background
+        JPanel backgroundPanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2d = (Graphics2D) g.create();
+                int w = getWidth();
+                int h = getHeight();
+                GradientPaint gp = new GradientPaint(
+                    0, 0, new Color(25, 25, 112),
+                    0, h, new Color(72, 61, 139)
+                );
+                g2d.setPaint(gp);
+                g2d.fillRect(0, 0, w, h);
+                g2d.dispose();
+            }
+        };
+        setContentPane(backgroundPanel);
+        backgroundPanel.setLayout(new BorderLayout(20, 20));
 
+        // Title Panel
+        JPanel titlePanel = new AnimatedPanel();
+        JLabel titleLabel = new JLabel("Card Game Collection");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 36));
+        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        titlePanel.add(titleLabel);
+        titlePanel.setBorder(new EmptyBorder(20, 0, 0, 0));
+        backgroundPanel.add(titlePanel, BorderLayout.NORTH);
+
+        // Display Area with custom styling
         displayArea.setEditable(false);
-        displayArea.setBackground(new Color(255, 255, 255));
-        displayArea.setForeground(new Color(25, 25, 112)); // Dark blue text
-        add(new JScrollPane(displayArea), BorderLayout.CENTER);
+        displayArea.setBackground(new Color(255, 255, 255, 220));
+        displayArea.setForeground(new Color(25, 25, 112));
+        displayArea.setFont(new Font("Arial", Font.PLAIN, 16));
+        displayArea.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(255, 255, 255, 100), 2),
+            BorderFactory.createEmptyBorder(10, 10, 10, 10)
+        ));
+        JScrollPane scrollPane = new JScrollPane(displayArea);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        backgroundPanel.add(scrollPane, BorderLayout.CENTER);
 
-        JPanel menuPanel = new JPanel();
-        menuPanel.setLayout(new GridLayout(2, 2, 10, 10)); // Added gaps between buttons
-        menuPanel.setBackground(new Color(240, 248, 255));
+        // Button Panel with animation
+        JPanel menuPanel = new AnimatedPanel();
+        menuPanel.setLayout(new GridLayout(2, 2, 20, 20));
+        menuPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
         
-        // Style buttons
-        styleButton(blackjackButton, new Color(50, 205, 50)); // Green
-        styleButton(highCardButton, new Color(255, 69, 0));   // Red-Orange
-        styleButton(guessCardButton, new Color(147, 112, 219)); // Purple
-        styleButton(slapjackButton, new Color(255, 215, 0));  // Gold
-
         menuPanel.add(blackjackButton);
         menuPanel.add(highCardButton);
         menuPanel.add(guessCardButton);
         menuPanel.add(slapjackButton);
-        add(menuPanel, BorderLayout.SOUTH);
+        backgroundPanel.add(menuPanel, BorderLayout.SOUTH);
 
-        // Add padding
-        menuPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
+        // Button Actions
         blackjackButton.addActionListener(e -> {
-            dispose();
+            fadeOutAndDispose();
             new BlackjackGame().setVisible(true);
         });
 
         highCardButton.addActionListener(e -> {
-            dispose();
+            fadeOutAndDispose();
             new HighCardGame().setVisible(true);
         });
+
         guessCardButton.addActionListener(e -> playGuessTheCard());
+
         slapjackButton.addActionListener(e -> {
-            dispose();
+            fadeOutAndDispose();
             new SlapjackGame().setVisible(true);
         });
     }
 
-    private void styleButton(JButton button, Color color) {
-        button.setBackground(color);
-        button.setForeground(Color.WHITE);
-        button.setFocusPainted(false);
-        button.setBorderPainted(false);
-        button.setFont(new Font("Arial", Font.BOLD, 14));
-        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        
-        // Add hover effect
-        button.addMouseListener(new MouseAdapter() {
-            public void mouseEntered(MouseEvent e) {
-                button.setBackground(color.darker());
-            }
-            public void mouseExited(MouseEvent e) {
-                button.setBackground(color);
+    private void fadeOutAndDispose() {
+        Timer fadeTimer = new Timer(50, new ActionListener() {
+            float opacity = 1.0f;
+            
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                opacity -= 0.1f;
+                if (opacity <= 0) {
+                    ((Timer)e.getSource()).stop();
+                    dispose();
+                } else {
+                    setOpacity(opacity);
+                }
             }
         });
+        fadeTimer.start();
     }
 
     private void playGuessTheCard() {
         List<StandardCard> deck = new Deck<>(new BlackjackGame().createStandardDeck()).cards;
         Random rand = new Random();
         StandardCard chosenCard = deck.get(rand.nextInt(deck.size()));
-        String guess = JOptionPane.showInputDialog(this, "Guess the rank of the card (e.g., Ace, 2, King):");
-        if (guess != null && guess.equalsIgnoreCase(chosenCard.getRank())) {
-            JOptionPane.showMessageDialog(this, "Correct! It was: " + chosenCard);
-        } else {
-            JOptionPane.showMessageDialog(this, "Wrong! It was: " + chosenCard);
-        }
+        
+        JDialog dialog = new JDialog(this, "Guess the Card", true);
+        dialog.setLayout(new BorderLayout(10, 10));
+        
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        JLabel label = new JLabel("Guess the rank of the card (e.g., Ace, 2, King):");
+        label.setFont(new Font("Arial", Font.BOLD, 14));
+        
+        JTextField input = new JTextField(20);
+        input.setFont(new Font("Arial", Font.PLAIN, 14));
+        
+        JButton submitButton = new GameButton("Submit Guess", new Color(50, 205, 50));
+        
+        panel.add(label, BorderLayout.NORTH);
+        panel.add(input, BorderLayout.CENTER);
+        panel.add(submitButton, BorderLayout.SOUTH);
+        
+        dialog.add(panel);
+        dialog.pack();
+        dialog.setLocationRelativeTo(this);
+        
+        submitButton.addActionListener(e -> {
+            String guess = input.getText();
+            if (guess != null && !guess.trim().isEmpty()) {
+                dialog.dispose();
+                showResult(guess.trim(), chosenCard);
+            }
+        });
+        
+        dialog.setVisible(true);
+    }
+
+    private void showResult(String guess, StandardCard chosenCard) {
+        JDialog resultDialog = new JDialog(this, "Result", true);
+        resultDialog.setLayout(new BorderLayout(10, 10));
+        
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        String message = guess.equalsIgnoreCase(chosenCard.getRank()) ?
+            "Correct! It was: " + chosenCard :
+            "Wrong! It was: " + chosenCard;
+            
+        JLabel label = new JLabel(message);
+        label.setFont(new Font("Arial", Font.BOLD, 16));
+        label.setHorizontalAlignment(SwingConstants.CENTER);
+        
+        panel.add(label, BorderLayout.CENTER);
+        
+        resultDialog.add(panel);
+        resultDialog.pack();
+        resultDialog.setLocationRelativeTo(this);
+        resultDialog.setVisible(true);
+        
+        // Auto-close after 2 seconds
+        Timer timer = new Timer(2000, e -> resultDialog.dispose());
+        timer.setRepeats(false);
+        timer.start();
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new CardGameSimulator().setVisible(true));
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        SwingUtilities.invokeLater(() -> {
+            CardGameSimulator game = new CardGameSimulator();
+            game.setLocationRelativeTo(null);
+            game.setVisible(true);
+        });
     }
 }
 
@@ -651,7 +846,7 @@ class SlapjackGame extends JFrame {
     private void slap() {
         if (!isJack) {
             display("No Jack to slap! -1 point penalty\n");
-            score = Math.max(0, score - 1);
+            score = Math.max(0, score -1);
             return;
         }
 
